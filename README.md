@@ -1,4 +1,4 @@
-# SAP---Programa-o-
+# SAP-Programcao
 Automações para o processo de programação no SAP ECC. Os principais projetos são:
 1- Automação na extração do SAP
 2- Automação puxando pelas Variantes
