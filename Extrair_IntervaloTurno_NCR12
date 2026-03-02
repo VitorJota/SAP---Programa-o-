@@ -1,0 +1,43 @@
+'CR01 - ATUALIZAR CAPACIDADE DO CENTRO DE TRABALHO
+Option Explicit
+
+Public Appl, SapGuiAuto, Connection, session, WScript 'Application, SapGuiAuto, Connection, session, WScript'
+
+Sub atualizarCapacidade()
+
+   If Not IsObject(Appl) Then
+       Set SapGuiAuto = GetObject("SAPGUI")
+       Set Appl = SapGuiAuto.GetScriptingEngine
+    End If
+    If Not IsObject(Connection) Then
+        Set Connection = Appl.Children(0)
+    End If
+    If Not IsObject(session) Then
+       Set session = Connection.Children(0)
+    End If
+    If IsObject(WScript) Then
+       WScript.ConnectObject session, "on"
+       WScript.ConnectObject Application, "on"
+    End If
+    
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Worksheets("Planilha2") ' <--ajuste o nome
+    
+    Dim i As Integer
+    Dim centroDeTrabalho As String
+    For i = 2 To 58
+    
+        'session.findById("wnd[0]").maximize
+        session.findById("wnd[0]/tbar[0]/okcd").Text = "/ncr12"
+        session.findById("wnd[0]").sendVKey 0
+        session.findById("wnd[0]/usr/ctxtRC68K-WERKS").Text = "4054"
+        session.findById("wnd[0]/usr/ctxtRC68K-ARBPL").Text = Trim(ws.Cells(i, 1))
+        session.findById("wnd[0]/usr/ctxtRC68K-ART_A").Text = "002"
+        session.findById("wnd[0]").sendVKey 0
+        ws.Cells(i, 3) = session.findById("wnd[0]/usr/subSTANDARD_CAP:SAPLCRK0:0133/txtRC68K-KAPAZ").Text
+        
+    
+    Next i
+    
+End Sub
+
