@@ -1,0 +1,465 @@
+Option Explicit
+
+'=========================
+' CONFIGURAÇÕES DO MODELO
+'=========================
+Private Const SHEET_NAME As String = "Progamacao Corretivas"  ' <-- troque para o nome real
+
+Private Const FIRST_ROW As Long = 14
+
+Private Const COL_VALUE As String = "V"           ' valor/benefício (V)
+Private Const COL_WEIGHT As String = "Q"          ' peso/consumo (Q)
+
+Private Const FIRST_VAR_COL As String = "AD"      ' início das variáveis (AD)
+Private Const VAR_COLS As Long = 5                ' AD..AH = 5 colunas
+
+Private Const CAPACITY_RANGE As String = "L2:L6"  ' capacidades por coluna (5 células)
+Private Const GLOBAL_CAP_CELL As String = "R5"    ' limite global (M8 <= R5)
+
+' Se TRUE: cada linha deve ter exatamente 1 alocação (1 em AD..AH)
+' Se FALSE: pode ficar 0 (não selecionado) OU 1 (selecionado em uma coluna)
+Private Const REQUIRE_EXACTLY_ONE As Boolean = False
+
+Sub executar_progamacao()
+    Dim rngVariaveis As Range
+    Dim rngEscolherTotal As Range
+    
+    Dim ws As Worksheet
+    Dim lastRow1 As Long
+    Set ws = ThisWorkbook.Worksheets("Progamacao Corretivas")
+    lastRow1 = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+    
+    Set rngVariaveis = ws.Range("AD14:AH" & lastRow1)
+    Set rngEscolherTotal = ws.Range("AI14:AI" & lastRow1)
+    
+    ' Coluna de Horas SAP
+    Range("Y14").Select
+    ActiveCell.FormulaR1C1 = "=RC17*RC30"
+    Range("Z14").Select
+    ActiveCell.FormulaR1C1 = "=RC17*RC31"
+    Range("AA14").Select
+    ActiveCell.FormulaR1C1 = "=RC32*RC17"
+    Range("AB14").Select
+    ActiveCell.FormulaR1C1 = "=RC33*RC17"
+    Range("AC14").Select
+    ActiveCell.FormulaR1C1 = "=RC17*RC34"
+    Range("Y14:AC14").Select
+    Selection.AutoFill Destination:=Range("Y14:AC" & lastRow1)
+    Range("Y14:AC46").Select
+    
+    ' soma coluna AI
+    Range("AI14").Select
+    ActiveCell.FormulaR1C1 = "=SUM(RC[-5]:RC[-1])"
+    Range("AI14").Select
+    Selection.AutoFill Destination:=Range("AI14:AI" & lastRow1)
+   
+    ' restricao semanal
+    Range("M2").Select
+    ActiveCell.FormulaR1C1 = "=SUMPRODUCT(R[12]C[4]:R[1048574]C[4], R[12]C[17]:R[1048574]C[17])"
+    Range("M3").Select
+    ActiveCell.FormulaR1C1 = "=SUMPRODUCT(R14C17:R46C17, R[11]C[18]:R[43]C[18])"
+    Range("M4").Select
+    ActiveCell.FormulaR1C1 = "=SUMPRODUCT(R14C17:R46C17, R[10]C[19]:R[42]C[19])"
+    Range("M5").Select
+    ActiveCell.FormulaR1C1 = "=SUMPRODUCT(R14C17:R46C17, R[9]C[20]:R[41]C[20])"
+    Range("M6").Select
+    ActiveCell.FormulaR1C1 = "=SUMPRODUCT(R14C17:R46C17, R[8]C[21]:R[40]C[21])"
+    Range("M8").Select
+    ActiveCell.FormulaR1C1 = "=SUM(R[-6]C:R[-2]C)"
+    
+    
+    If lastRow1 < 40 Then
+        SolverReset
+        SolverOk SetCell:="$R$2", MaxMinVal:=1, ValueOf:=0, ByChange:=rngVariaveis.Address, Engine:=2, EngineDesc:="Simplex LP"
+        
+        SolverAdd CellRef:=rngVariaveis.Address, Relation:=5, FormulaText:="bin"
+        SolverAdd CellRef:=rngEscolherTotal.Address, Relation:=3, FormulaText:="1"
+        
+        SolverAdd CellRef:="$M$2:$M$6", Relation:=1, FormulaText:="$L$2:$L$6"
+        
+        SolverAdd CellRef:="$M$8", Relation:=1, FormulaText:="$R$5"
+        
+        SolverSolve
+    Else
+        
+
+        '=========================
+        ' ENTRADA PRINCIPAL
+        '=========================
+        'Public Sub ResolverSemSolver()
+    
+        Dim lastRow As Long
+        lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+        If lastRow < FIRST_ROW Then
+            MsgBox "Não encontrei dados a partir da linha " & FIRST_ROW, vbExclamation
+            Exit Sub
+        End If
+    
+        Application.ScreenUpdating = False
+        Application.Calculation = xlCalculationManual
+        Application.EnableEvents = False
+    
+        On Error GoTo CleanFail
+    
+        '--- Ler dados para arrays (rápido)
+        Dim n As Long: n = lastRow - FIRST_ROW + 1
+    
+        Dim values() As Double, weights() As Double
+        ReDim values(1 To n)
+        ReDim weights(1 To n)
+    
+        Dim i As Long
+        Dim rngV As Range, rngQ As Range
+        Set rngV = ws.Range(COL_VALUE & FIRST_ROW & ":" & COL_VALUE & lastRow)
+        Set rngQ = ws.Range(COL_WEIGHT & FIRST_ROW & ":" & COL_WEIGHT & lastRow)
+    
+        Dim vArr As Variant, qArr As Variant
+        vArr = rngV.Value2
+        qArr = rngQ.Value2
+    
+        For i = 1 To n
+            values(i) = CDbl(nz(vArr(i, 1), 0))
+            weights(i) = CDbl(nz(qArr(i, 1), 0))
+        Next i
+    
+        '--- Capacidades por coluna
+        Dim cap() As Double, remCap() As Double
+        ReDim cap(1 To VAR_COLS)
+        ReDim remCap(1 To VAR_COLS)
+    
+        Dim capArr As Variant
+        capArr = ws.Range(CAPACITY_RANGE).Value2
+    
+        Dim j As Long
+        For j = 1 To VAR_COLS
+            cap(j) = CDbl(nz(capArr(j, 1), 0))
+            remCap(j) = cap(j)
+        Next j
+    
+        '--- Capacidade global
+        Dim globalCap As Double, remGlobal As Double
+        globalCap = CDbl(nz(ws.Range(GLOBAL_CAP_CELL).Value2, 0))
+        remGlobal = globalCap
+    
+        '--- Matriz de decisão x(i,j) em memória
+        Dim x() As Integer
+        ReDim x(1 To n, 1 To VAR_COLS)
+    
+        ' Zerar variáveis na planilha (para não ficar lixo)
+        ws.Range(FIRST_VAR_COL & FIRST_ROW & ":" & colLetter(ColNumber(FIRST_VAR_COL) + VAR_COLS - 1) & lastRow).Value2 = 0
+    
+        '=========================
+        ' 1) CONSTRUÇÃO INICIAL: GULOSO
+        '=========================
+        Dim idx() As Long
+        idx = SortByRatio(values, weights) ' ordena por value/weight desc
+    
+        For i = 1 To n
+            Dim item As Long: item = idx(i)
+    
+            ' Se exigir exatamente 1 por linha e não couber em lugar nenhum, teremos que sinalizar inviabilidade
+            ' Se não exigir, simplesmente não seleciona.
+            Dim w As Double: w = weights(item)
+            Dim val As Double: val = values(item)
+    
+            ' Itens com peso <=0: se tiver valor positivo, sempre escolhe (não consome)
+            ' Se peso = 0 e REQUIRE_EXACTLY_ONE=True, também escolhemos uma coluna qualquer (sem consumir).
+            If w <= 0 Then
+                If val > 0 Or REQUIRE_EXACTLY_ONE Then
+                    j = BestColumnForItem(remCap, remGlobal, 0)
+                    If j > 0 Then x(item, j) = 1
+                End If
+                GoTo NextItem
+            End If
+    
+            ' Se não tem capacidade global suficiente, pula (a menos que REQUIRE_EXACTLY_ONE)
+            If w > remGlobal And Not REQUIRE_EXACTLY_ONE Then GoTo NextItem
+    
+            ' Escolhe a "melhor" coluna (com mais espaço sobrando) que comporte o item
+            j = BestColumnForItem(remCap, remGlobal, w)
+            If j > 0 Then
+                x(item, j) = 1
+                remCap(j) = remCap(j) - w
+                remGlobal = remGlobal - w
+            Else
+                ' Não coube em nenhuma coluna
+                If REQUIRE_EXACTLY_ONE Then
+                    ' aqui você decide: ou falha, ou força violação (não recomendado)
+                    Err.Raise vbObjectError + 1, , _
+                        "Modelo inviável: item (linha " & (FIRST_ROW + item - 1) & ") não cabe em nenhuma capacidade."
+                End If
+            End If
+    
+NextItem:
+        Next i
+    
+        '=========================
+        ' 2) MELHORIA LOCAL: 1-por-1 (troca) para aumentar valor
+        '=========================
+        ImproveBySingleSwap values, weights, x, cap, globalCap, VAR_COLS
+    
+        '=========================
+        ' 3) ESCREVER RESULTADO NA PLANILHA
+        '=========================
+        WriteSolution ws, x, lastRow
+    
+        ' Recalcula fórmulas (R2, M2:M6, M8 etc.)
+        Application.Calculation = xlCalculationAutomatic
+        ws.Calculate
+    
+        ' Relatório rápido
+        Dim obj As Double
+        obj = ComputeObjective(values, x)
+    
+        MsgBox "Concluído!" & vbCrLf & _
+               "Itens (linhas) considerados: " & n & vbCrLf & _
+               "Objetivo (aprox. somatório V selecionados): " & Format(obj, "#,##0.00"), vbInformation
+    
+CleanExit:
+        Application.ScreenUpdating = True
+        Application.EnableEvents = True
+        Application.Calculation = xlCalculationAutomatic
+        Exit Sub
+    
+CleanFail:
+        MsgBox "Erro: " & Err.Description, vbCritical
+        Resume CleanExit
+    End If
+    MsgBox "Concluído"
+End Sub
+
+'=========================
+' FUNÇÕES AUXILIARES
+'=========================
+
+Private Function GetLastRow(ws As Worksheet, colLetter As String, firstRow As Long) As Long
+    Dim r As Long
+    r = ws.Cells(ws.Rows.Count, colLetter).End(xlUp).Row
+    If r < firstRow Then r = firstRow - 1
+    GetLastRow = r
+End Function
+
+Private Function nz(ByVal v As Variant, ByVal defaultValue As Variant) As Variant
+    If IsError(v) Then
+        nz = defaultValue
+    ElseIf IsEmpty(v) Or v = "" Then
+        nz = defaultValue
+    Else
+        nz = v
+    End If
+End Function
+
+Private Function ColNumber(colLetter As String) As Long
+    ColNumber = Range(colLetter & "1").Column
+End Function
+
+Private Function colLetter(colNum As Long) As String
+    colLetter = Split(Cells(1, colNum).Address(True, False), "$")(0)
+End Function
+
+' Ordena itens por razão value/weight desc (peso 0 vai pro topo se value>0)
+Private Function SortByRatio(values() As Double, weights() As Double) As Long()
+    Dim n As Long: n = UBound(values)
+    Dim idx() As Long: ReDim idx(1 To n)
+
+    Dim i As Long
+    For i = 1 To n: idx(i) = i: Next i
+
+    QuickSortByRatio idx, values, weights, 1, n
+    SortByRatio = idx
+End Function
+
+Private Sub QuickSortByRatio(idx() As Long, values() As Double, weights() As Double, ByVal lo As Long, ByVal hi As Long)
+    Dim i As Long, j As Long
+    i = lo: j = hi
+
+    Dim pivot As Double
+    pivot = Ratio(values(idx((lo + hi) \ 2)), weights(idx((lo + hi) \ 2)))
+
+    Do While i <= j
+        Do While Ratio(values(idx(i)), weights(idx(i))) > pivot
+            i = i + 1
+        Loop
+        Do While Ratio(values(idx(j)), weights(idx(j))) < pivot
+            j = j - 1
+        Loop
+
+        If i <= j Then
+            Dim tmp As Long
+            tmp = idx(i): idx(i) = idx(j): idx(j) = tmp
+            i = i + 1: j = j - 1
+        End If
+    Loop
+
+    If lo < j Then QuickSortByRatio idx, values, weights, lo, j
+    If i < hi Then QuickSortByRatio idx, values, weights, i, hi
+End Sub
+
+Private Function Ratio(v As Double, w As Double) As Double
+    If w <= 0 Then
+        If v > 0 Then Ratio = 1E+30 Else Ratio = -1E+30
+    Else
+        Ratio = v / w
+    End If
+End Function
+
+' Escolhe coluna com maior capacidade restante que comporte o item
+Private Function BestColumnForItem(remCap() As Double, remGlobal As Double, w As Double) As Long
+    Dim bestJ As Long: bestJ = 0
+    Dim bestSpace As Double: bestSpace = -1E+30
+
+    Dim j As Long
+    For j = 1 To UBound(remCap)
+        If w <= remCap(j) And w <= remGlobal Then
+            If remCap(j) > bestSpace Then
+                bestSpace = remCap(j)
+                bestJ = j
+            End If
+        End If
+    Next j
+
+    BestColumnForItem = bestJ
+End Function
+
+Private Sub WriteSolution(ws As Worksheet, x() As Integer, lastRow As Long)
+    Dim n As Long: n = UBound(x, 1)
+    Dim j As Long, i As Long
+
+    Dim outArr() As Variant
+    ReDim outArr(1 To n, 1 To VAR_COLS)
+
+    For i = 1 To n
+        For j = 1 To VAR_COLS
+            outArr(i, j) = x(i, j)
+        Next j
+    Next i
+
+    Dim firstColNum As Long: firstColNum = ColNumber(FIRST_VAR_COL)
+    Dim lastColNum As Long: lastColNum = firstColNum + VAR_COLS - 1
+
+    ws.Range(Cells(FIRST_ROW, firstColNum), Cells(lastRow, lastColNum)).Value2 = outArr
+End Sub
+
+' Objetivo aproximado = soma de values(i) se qualquer x(i,j)=1
+Private Function ComputeObjective(values() As Double, x() As Integer) As Double
+    Dim n As Long: n = UBound(values)
+    Dim j As Long, i As Long
+    Dim sum As Double: sum = 0
+
+    For i = 1 To n
+        Dim picked As Boolean: picked = False
+        For j = 1 To UBound(x, 2)
+            If x(i, j) = 1 Then
+                picked = True
+                Exit For
+            End If
+        Next j
+        If picked Then sum = sum + values(i)
+    Next i
+
+    ComputeObjective = sum
+End Function
+
+' Melhoria local: tenta trocar 1 item dentro de uma coluna por 1 item fora para aumentar valor
+Private Sub ImproveBySingleSwap(values() As Double, weights() As Double, _
+                               x() As Integer, cap() As Double, globalCap As Double, _
+                               varCols As Long)
+
+    Dim n As Long: n = UBound(values)
+
+    ' Recalcula uso por coluna e global
+    Dim usedCol() As Double, usedGlobal As Double
+    ReDim usedCol(1 To varCols)
+    usedGlobal = 0
+
+    Dim i As Long, j As Long
+    For i = 1 To n
+        For j = 1 To varCols
+            If x(i, j) = 1 Then
+                usedCol(j) = usedCol(j) + weights(i)
+                usedGlobal = usedGlobal + weights(i)
+            End If
+        Next j
+    Next i
+
+    Dim improved As Boolean
+    Dim pass As Long
+
+    ' Algumas passadas rápidas
+    For pass = 1 To 3
+        improved = False
+
+        For j = 1 To varCols
+            Dim freeJ As Double: freeJ = cap(j) - usedCol(j)
+
+            ' Para cada item fora, tenta entrar substituindo o pior ganho
+            For i = 1 To n
+                If Not IsSelected(i, x) Then
+                    Dim wIn As Double: wIn = weights(i)
+                    Dim vIn As Double: vIn = values(i)
+
+                    ' Precisa caber no global
+                    If usedGlobal + wIn > globalCap Then GoTo NextCandidate
+
+                    ' Se cabe direto na coluna, entra
+                    If wIn <= freeJ Then
+                        x(i, j) = 1
+                        usedCol(j) = usedCol(j) + wIn
+                        usedGlobal = usedGlobal + wIn
+                        freeJ = freeJ - wIn
+                        improved = True
+                        GoTo NextCandidate
+                    End If
+
+                    ' Se não cabe, tenta trocar com algum item já dentro da coluna
+                    Dim k As Long
+                    Dim bestDelta As Double: bestDelta = 0
+                    Dim bestK As Long: bestK = 0
+
+                    For k = 1 To n
+                        If x(k, j) = 1 Then
+                            Dim wOut As Double: wOut = weights(k)
+                            Dim vOut As Double: vOut = values(k)
+
+                            ' Após remover k, i cabe?
+                            If wIn <= freeJ + wOut Then
+                                Dim delta As Double: delta = vIn - vOut
+                                If delta > bestDelta Then
+                                    bestDelta = delta
+                                    bestK = k
+                                End If
+                            End If
+                        End If
+                    Next k
+
+                    If bestK > 0 Then
+                        ' troca
+                        x(bestK, j) = 0
+                        x(i, j) = 1
+
+                        usedCol(j) = usedCol(j) - weights(bestK) + wIn
+                        usedGlobal = usedGlobal - weights(bestK) + wIn
+                        freeJ = cap(j) - usedCol(j)
+
+                        improved = True
+                    End If
+                End If
+NextCandidate:
+            Next i
+        Next j
+
+        If Not improved Then Exit For
+    Next pass
+End Sub
+
+Private Function IsSelected(i As Long, x() As Integer) As Boolean
+    Dim j As Long
+    For j = 1 To UBound(x, 2)
+        If x(i, j) = 1 Then
+            IsSelected = True
+            Exit Function
+        End If
+    Next j
+    IsSelected = False
+End Function
+
