@@ -1,0 +1,32 @@
+Public Sub SAP_Logon()
+    Dim SapGui
+    Dim Applic
+    Dim connection
+    Dim session
+    Dim WSHShell
+
+    'Código para abrir o SAP
+    Shell "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\One Vale\SAP Front End", vbNormalFocus
+    Set WSHShell = CreateObject("WScript.Shell")
+
+    Do Until WSHShell.AppActivate("SAP Logon ")
+        Application.Wait Now + TimeValue("00:00:01")
+    Loop
+
+    Set WSHShell = Nothing
+    Set SapGui = GetObject("SAPGUI")
+    Set Applic = SapGui.GetScriptingEngine
+    Set connection = Applic.OpenConnection("01 - ECC - EP0 - Production", True)
+    Set session = connection.Children(0)
+    session.findById("wnd[0]").maximize
+    
+    'DADOS LOGIN'
+    'Dados para realizar o login no SAP
+    session.findById("wnd[0]/usr/txtRSYST-MANDT").Text = "500"
+    session.findById("wnd[0]/usr/txtRSYST-BNAME").Text = "81054171"
+    session.findById("wnd[0]/usr/pwdRSYST-BCODE").Text = "Biscoito120@"
+    session.findById("wnd[0]/usr/txtRSYST-LANGU").Text = "PT"
+    
+    session.findById("wnd[0]").sendVKey 0
+    
+End Sub
