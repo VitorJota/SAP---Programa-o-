@@ -1,0 +1,147 @@
+Option Explicit
+Public Appl, SapGuiAuto, connection, session, WScript
+
+Public cancelarCodigo As Boolean
+
+Sub atualizarInformacoesV9()
+    
+ Dim isSap As Boolean
+ isSap = False
+ 
+ Dim numeroLinha As Integer
+ Dim lista As Object
+ Dim lin As Integer
+ Dim result As Date
+ Dim errou As Integer
+ 
+ Dim linhas() As Range
+ Dim i As Long
+ Dim j As Integer
+ Dim p As Integer
+ Dim ultimaLinhaOrigem As Long
+ Dim ultimaLinhaBaseDados As Long
+ Dim destinoLinha As Long
+ Dim atualizarValores As String
+ Dim ultimaLinhaBaseDeDados As Integer
+ Dim ultimaColuna As Integer
+ Dim letraColuna As String
+ Dim rangeDestino As Range
+ 
+ Dim k As Integer
+ Dim primeirasLetras As String
+ Dim Texto As String
+ 
+ Dim colunaAtual As String
+    
+ Dim senha As String
+ Dim pasta As String
+ Dim abrirSAP As Boolean
+ '------------------
+ 
+ If Not IsObject(Appl) Then
+  Set SapGuiAuto = GetObject("SAPGUI")
+  Set Appl = SapGuiAuto.GetScriptingEngine
+ End If
+ If Not IsObject(connection) Then
+  Set connection = Appl.Children(0)
+ End If
+ If Not IsObject(session) Then
+  Set session = connection.Children(0)
+ End If
+ If IsObject(WScript) Then
+  WScript.ConnectObject session, "on"
+  WScript.ConnectObject Application, "on"
+ End If
+ 
+ Dim andamento As Double
+ Dim porcent As Double
+ Dim total As Double
+ 
+ Dim erroUmaOm As String
+ Dim erroSemOM As String
+ Dim ErroSim As String
+ Dim erroDiasDiferentes As String
+ Dim erroHoraFim As String
+    
+ session.findById("wnd[0]/tbar[0]/okcd").Text = "/niw38"
+ session.findById("wnd[0]").sendVKey 0
+ session.findById("wnd[0]/usr/ctxtSTRNO-LOW").SetFocus
+ session.findById("wnd[0]/usr/ctxtSTRNO-LOW").caretPosition = 0
+ session.findById("wnd[0]/usr/btn%_STRNO_%_APP_%-VALU_PUSH").press
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,0]").Text = "INFS-TVM-TUB*"
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").Text = "INFS-TVM-VIX*"
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").SetFocus
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").caretPosition = 13
+ session.findById("wnd[1]/tbar[0]/btn[8]").press
+ session.findById("wnd[0]/usr/ctxtGEWRK-LOW").Text = "T*"
+ session.findById("wnd[0]/usr/txtVAWRK-LOW").Text = "4054"
+ session.findById("wnd[0]/usr/ctxtSTAI1-LOW").SetFocus
+ session.findById("wnd[0]/usr/ctxtSTAI1-LOW").caretPosition = 0
+ session.findById("wnd[0]/usr/btn%_STAI1_%_APP_%-VALU_PUSH").press
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,0]").Text = "AGPR"
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").Text = "AGRP"
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").SetFocus
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").caretPosition = 4
+ session.findById("wnd[1]/tbar[0]/btn[8]").press
+ session.findById("wnd[0]/usr/ctxtSTAE1-LOW").SetFocus
+ session.findById("wnd[0]/usr/ctxtSTAE1-LOW").caretPosition = 0
+ session.findById("wnd[0]/usr/btn%_STAE1_%_APP_%-VALU_PUSH").press
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,0]").Text = "CANC"
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").Text = "ENCR"
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").SetFocus
+ session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").caretPosition = 4
+ 'session.findById("wnd[0]/tbar[1]/btn[32]").press
+ 
+ 
+
+ session.findById("wnd[1]/tbar[0]/btn[8]").press
+ session.findById("wnd[0]/tbar[1]/btn[8]").press
+'
+ session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell 2, "USTXT"
+ session.findById("wnd[0]/tbar[1]/btn[32]").press
+ session.findById("wnd[1]/usr/tabsG_TS_ALV/tabpALV_M_R1/ssubSUB_DYN0510:SAPLSKBH:0620/cntlCONTAINER1_LAYO/shellcont/shell").currentCellRow = 34
+ session.findById("wnd[1]/usr/tabsG_TS_ALV/tabpALV_M_R1/ssubSUB_DYN0510:SAPLSKBH:0620/cntlCONTAINER1_LAYO/shellcont/shell").firstVisibleRow = 33
+ session.findById("wnd[1]/usr/tabsG_TS_ALV/tabpALV_M_R1/ssubSUB_DYN0510:SAPLSKBH:0620/cntlCONTAINER1_LAYO/shellcont/shell").selectedRows = "34"
+ session.findById("wnd[1]/usr/tabsG_TS_ALV/tabpALV_M_R1/ssubSUB_DYN0510:SAPLSKBH:0620/btnAPP_WL_SING").press
+ session.findById("wnd[1]/tbar[0]/btn[0]").press
+
+
+
+
+ 'session.findById("wnd[1]/tbar[0]/btn[0]").press
+ '-----------------------------
+ ' Planilha - Base de dados
+ ' Colar informaçoes do sap
+ '-----------------------------
+ 
+ Set lista = session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell")
+ For i = 0 To lista.RowCount - 1
+  session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").firstVisibleRow = i
+  i = i + 50
+ Next i
+ 
+ session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").firstVisibleRow = 0
+ Set lista = session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell")
+ Application.EnableEvents = True
+ 
+ For i = 0 To lista.RowCount - 1
+  lin = Range("A:A").Find(Empty).Row
+  Range("A" & lin) = lista.GetCellValue(i, "AUFNR")
+  Range("B" & lin) = lista.GetCellValue(i, "TPLNR")
+  Range("C" & lin) = lista.GetCellValue(i, "USTXT")
+  'Range("d" & lin) = lista.GetCellValue(i, "ERDAT")
+  'Range("D" & lin) = DateValue(lista.GetCellValue(i, "ERDAT"))
+  Range("D" & lin) = lista.GetCellValue(i, "ERNAM")
+  'Local
+  'Range("e" & lin).Value = Date - CDate(Replace(lista.GetCellValue(i, "ERDAT"), ".", "/"))
+  
+  ' Range("f" & lin).Value = Abs(Date - DateValue(Replace(lista.GetCellValue(i, "ERDAT"), ".", "/")))
+  ' Range("D" & lin) = Date - DateValue(""" & lista.GetCellValue(i, "PLTXT") & """)
+  ' Atualizar Barra de Tarefas
+ Next i
+ MsgBox "Concluido"
+ 
+End Sub
+
+
+
