@@ -1,0 +1,40 @@
+Sub ExtrairMultiplasPalavras_MarcarColunas()
+    Dim ws As Worksheet
+    Dim lastRow As Long
+    Dim i As Long
+    Dim palavras As Variant
+    Dim colunas As Variant
+    Dim palavra As Variant
+    Dim encontrados As String
+    
+    ' Define a planilha ativa
+    Set ws = ThisWorkbook.Sheets("Carteira")
+    ' Palavras a procurar
+    palavras = Array("SEGU", "SAUD", "MANB", "RELIG")
+    
+    ' Colunas correspondentes às palavras (na mesma ordem)
+    ' G=7, H=8, I=9, J=10 (ajuste se quiser mudar)
+    colunas = Array(7, 8, 9, 10)
+    ' ? Nota: estou colocando SAUD -> G, SEGU -> H, MANB -> I, RELIG -> J
+    '         conforme você pediu. A ordem é flexível.
+    
+    ' Última linha da coluna B
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).Row
+   
+    ' Loop nas linhas
+    For i = 2 To lastRow
+        encontrados = ""
+        ' Verifica cada palavra na célula
+        For Each palavra In palavras
+          Dim idx As Long
+          idx = Application.Match(palavra, palavras, 0) - 1 ' índice da palavra no array
+          
+          If InStr(1, ws.Cells(i, "C").Value, palavra, vbTextCompare) > 0 Then
+           ' Marca 1 na coluna correspondente
+           ws.Cells(i, colunas(idx)).Value = 1
+          Else
+           ws.Cells(i, colunas(idx)).Value = 0
+          End If
+        Next palavra
+    Next i
+End Sub
